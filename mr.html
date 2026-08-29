@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="zh">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MR 观演端（Pico 4 Ultra）</title>
+    <style>
+      body { margin: 0; background: #000; color: #fff; font-family: system-ui; overflow: hidden; }
+      #ui {
+        position: fixed;
+        left: 50%;
+        bottom: 18px;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        background: rgba(10, 10, 20, 0.75);
+        padding: 12px 16px;
+        border-radius: 14px;
+        border: 1px solid #333;
+        backdrop-filter: blur(6px);
+        z-index: 10;
+        max-width: 94vw;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+      button {
+        padding: 10px 14px;
+        border-radius: 10px;
+        border: 1px solid #444;
+        background: #1c1c2e;
+        color: #fff;
+        cursor: pointer;
+        font-size: 15px;
+      }
+      #btnEnter { background: #2e6bff; border-color: #4f86ff; }
+      #status { width: 100%; text-align: center; font-size: 13px; color: #9a9ab0; }
+    </style>
+  </head>
+  <body>
+    <div id="ui">
+      <button id="btnEnter">进入 MR 模式</button>
+      <input id="musicFile" type="file" accept="audio/*" hidden />
+      <button id="btnMusic">加载音乐</button>
+      <button id="btnMic">麦克风识别</button>
+      <button id="btnMetro">自动节拍</button>
+      <button id="btnScene">手动切景</button>
+      <div id="status">等待姿态数据…（电脑打开 /pose.html）</div>
+    </div>
+    <script type="module" src="/src/mr.js"></script>
+  </body>
+</html>

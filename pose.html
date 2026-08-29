@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="zh">
+  <head>
+    <meta charset="utf-8" />
+    <title>舞者姿态发送端（电脑）</title>
+    <style>
+      body { margin: 16px; background: #111; color: #fff; font-family: system-ui; }
+      video, canvas { display: block; }
+      #status { color: #9a9ab0; font-size: 13px; }
+    </style>
+  </head>
+  <body>
+    <h3>舞者姿态发送端（电脑）</h3>
+    <p id="status">连接中…</p>
+    <video id="video" width="640" height="480" autoplay playsinline></video>
+    <canvas id="overlay" width="640" height="480"></canvas>
+    <script type="module" src="/src/pose.js"></script>
+  </body>
+</html>
