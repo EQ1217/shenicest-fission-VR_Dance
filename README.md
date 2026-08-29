@@ -2,6 +2,14 @@
 
 观众佩戴 Pico 4 Ultra，通过 MR 透视看到真实舞者，并在同一空间叠加实时 3D 场景和特效。电脑摄像头识别舞者姿态，音乐/麦克风识别节拍，共同驱动特效和场景切换。
 
+线上观演端（Vercel）：https://web-ashen-five-28.vercel.app/mr.html
+
+## 线上部署（Vercel + GitHub 联动）
+
+- 仓库 main 分支推送后自动触发 Vercel 构建部署。
+- 观演端为纯静态页面，自动演示模式默认开启（无姿态数据时粒子爆发 + 场景循环）。
+- 姿态中继（WebSocket）不适用于 Vercel Serverless，实时联动需自建 Node 服务运行 `node relay-server.mjs`。
+
 ## 环境要求
 
 - Node.js 18+
