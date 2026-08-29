@@ -4,6 +4,7 @@ import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { RGBELoader } from "three/addons/loaders/RGBELoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -20,6 +21,16 @@ const scene = new THREE.Scene();
 const pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 scene.environmentIntensity = 0.3;
+const defaultEnvironment = scene.environment;
+let cityEnvironment = null;
+new RGBELoader()
+  .loadAsync("models/city/modern_evening_street_1k.hdr")
+  .then((tex) => {
+    tex.mapping = THREE.EquirectangularReflectionMapping;
+    cityEnvironment = pmrem.fromEquirectangular(tex).texture;
+    tex.dispose();
+  })
+  .catch(() => {});
 scene.fog = new THREE.FogExp2(0x080810, 0.028);
 const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.05, 80);
 
@@ -217,14 +228,6 @@ function buildForest() {
   mossTex.colorSpace = THREE.SRGBColorSpace;
 
   const groundMat = new THREE.MeshStandardMaterial({ map: mossTex, color: 0xb7c99a, roughness: 0.95, metalness: 0 });
-  const stageFloor = new THREE.Mesh(new THREE.CircleGeometry(3.8, 64), groundMat);
-  stageFloor.rotation.x = -Math.PI / 2;
-  stageFloor.position.y = 0.004;
-  focal.add(stageFloor);
-
-  const forestFloor = new THREE.Mesh(new THREE.CircleGeometry(8.0, 96), groundMat);
-  forestFloor.rotation.x = -Math.PI / 2;
-  forestFloor.position.y = -0.012;
 
   const makeCanopy = (group, x, y, z, scale = 1) => {
     const mat = leafMats[Math.floor(Math.random() * leafMats.length)];
@@ -271,14 +274,14 @@ function buildForest() {
   for (let i = 0; i < 12; i++) {
     const a = Math.PI + (Math.random() - 0.5) * 1.25;
     const r = 1.7 + Math.random() * 1.5;
-    const bush = makeBush(Math.cos(a) * r, 0, Math.sin(a) * r, 0.55 + Math.random() * 0.35);
+    const behindZ = -Math.max(0.35, Math.abs(Math.sin(a) * r));
+    const bush = makeBush(Math.cos(a) * r, 0, behindZ, 0.55 + Math.random() * 0.35);
     focal.add(bush);
     registerSway(bush, 0.025, 0.5 + Math.random() * 0.8, "z");
   }
   focal.add(glowPoints(190, 0x9dffc0, 0.055, 5.5, 3.2, 5.5));
 
   const env = new THREE.Group();
-  env.add(forestFloor);
   for (let i = 0; i < 22; i++) {
     const a = (i / 22) * Math.PI * 2 + Math.random() * 0.18;
     const r = 4.2 + Math.random() * 3.3;
@@ -337,7 +340,137 @@ function buildCrystal() {
   return { focal, env };
 }
 
-const built = [buildStone(), buildForest(), buildCrystal()];
+function makeCityWindowTexture() {
+  const c = document.createElement("canvas");
+  c.width = c.height = 256;
+  const g = c.getContext("2d");
+  g.fillStyle = "#0a0c18";
+  g.fillRect(0, 0, 256, 256);
+
+  // 玻璃幕墙：少量冷色窗 + 暖色灯光窗，避免重复感。
+  const cols = 16;
+  const rows = 24;
+  const stepX = 256 / cols;
+  const stepY = 256 / rows;
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      const v = Math.random();
+      if (v < 0.42) continue;
+      const lit = v > 0.88;
+      g.fillStyle = lit
+        ? `rgba(255, ${180 + Math.floor(Math.random() * 55)}, 88, ${0.7 + Math.random() * 0.3})`
+        : `rgba(${70 + Math.floor(Math.random() * 45)}, ${90 + Math.floor(Math.random() * 45)}, ${150 + Math.floor(Math.random() * 55)}, 0.42)`;
+      const pad = 4 + Math.random() * 5;
+      g.fillRect(x * stepX + pad * 0.7, y * stepY + pad * 0.45, stepX - pad, stepY - pad);
+    }
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(2, 3);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  return tex;
+}
+
+function makeCityBuilding(h, baseColor, windowTex, neonColor = null) {
+  const g = new THREE.Group();
+  const w = 0.85 + Math.random() * 0.75;
+  const d = 0.75 + Math.random() * 0.65;
+  const mat = new THREE.MeshStandardMaterial({
+    color: baseColor,
+    map: windowTex,
+    emissiveMap: windowTex,
+    emissive: new THREE.Color(0x2b1b4d),
+    emissiveIntensity: 0.75,
+    roughness: 0.68,
+    metalness: 0.14,
+  });
+  const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+  body.position.y = h / 2;
+  g.add(body);
+
+  if (neonColor !== null) {
+    const strip = new THREE.Mesh(
+      new THREE.BoxGeometry(w * 1.02, 0.06, d * 1.02),
+      new THREE.MeshBasicMaterial({ color: neonColor, toneMapped: false })
+    );
+    strip.position.y = h * 0.78;
+    g.add(strip);
+  }
+  return g;
+}
+
+function buildCity() {
+  const windowTex = makeCityWindowTexture();
+
+  const focal = new THREE.Group();
+  // 舞台后方半圈楼宇：压暗的近景剪影，让舞者仍然最亮。
+  const skylineDefs = [
+    { x: -4.1, z: -3.1, h: 2.4, c: 0x1c2338, n: 0x36d5ff },
+    { x: -3.0, z: -3.7, h: 3.4, c: 0x21263c, n: 0x9f5cff },
+    { x: -1.7, z: -4.0, h: 2.8, c: 0x17233b, n: 0x36d5ff },
+    { x: -0.2, z: -4.2, h: 4.2, c: 0x111a2e, n: 0xff4f8a },
+    { x: 1.4, z: -4.0, h: 3.0, c: 0x1b2138, n: 0x36d5ff },
+    { x: 2.8, z: -3.7, h: 3.6, c: 0x20263d, n: 0x9f5cff },
+    { x: 4.0, z: -3.1, h: 2.5, c: 0x182236, n: 0x36d5ff },
+  ];
+  skylineDefs.forEach((s) => {
+    const b = makeCityBuilding(s.h, s.c, windowTex, s.n);
+    b.position.set(s.x, 0, s.z);
+    b.rotation.y = (Math.random() - 0.5) * 0.14;
+    focal.add(b);
+  });
+  focal.add(glowPoints(130, 0x8ecfff, 0.06, 6, 4, 6));
+
+  const env = new THREE.Group();
+  // 城市道路环 + 地面标线，环绕观众，不遮挡中央舞台。
+  const road = new THREE.Mesh(
+    new THREE.RingGeometry(3.55, 4.45, 96),
+    new THREE.MeshStandardMaterial({ color: 0x15161d, roughness: 0.86, metalness: 0.04 })
+  );
+  road.rotation.x = -Math.PI / 2;
+  road.position.y = 0.002;
+  env.add(road);
+  const roadLine = new THREE.Mesh(
+    new THREE.RingGeometry(3.98, 4.04, 96),
+    new THREE.MeshBasicMaterial({ color: 0xffd86a, transparent: true, opacity: 0.72, toneMapped: false })
+  );
+  roadLine.rotation.x = -Math.PI / 2;
+  roadLine.position.y = 0.008;
+  env.add(roadLine);
+
+  const buildingColors = [0x1d2742, 0x151a2d, 0x251f3a, 0x182238, 0x2b1f3c];
+  for (let i = 0; i < 18; i++) {
+    const a = (i / 18) * Math.PI * 2 + Math.random() * 0.14;
+    const r = 5.1 + Math.random() * 2.0;
+    const h = 1.8 + Math.random() * 4.0;
+    const b = makeCityBuilding(
+      h,
+      buildingColors[Math.floor(Math.random() * buildingColors.length)],
+      windowTex,
+      Math.random() > 0.68 ? 0x36d5ff : null
+    );
+    b.position.set(Math.cos(a) * r, 0, Math.sin(a) * r);
+    b.rotation.y = Math.random() * Math.PI * 2;
+    env.add(b);
+  }
+
+  // 街灯：细小发光头，不抢舞台，只补充城市纵深。
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    const r = 4.85;
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.05, 2.5, 8), new THREE.MeshStandardMaterial({ color: 0x2a2e3c, roughness: 0.7, metalness: 0.35 }));
+    pole.position.set(Math.cos(a) * r, 1.25, Math.sin(a) * r);
+    env.add(pole);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.12, 12, 10), new THREE.MeshBasicMaterial({ color: 0xffd9a0, toneMapped: false }));
+    head.position.set(Math.cos(a) * r + Math.cos(a) * 0.08, 2.55, Math.sin(a) * r + Math.sin(a) * 0.08);
+    env.add(head);
+  }
+  env.add(glowPoints(90, 0xff86c0, 0.055, 8, 4.5, 8));
+  return { focal, env };
+}
+
+const built = [buildStone(), buildForest(), buildCrystal(), buildCity()];
 const scenesFocal = built.map((b) => b.focal);
 const scenesEnv = built.map((b) => b.env);
 scenesFocal.forEach((g) => {
@@ -363,7 +496,7 @@ scenesEnv.forEach((g) => breathItems.push(g));
 );
 const shadowCatcher = new THREE.Mesh(
   new THREE.PlaneGeometry(20, 20),
-  new THREE.ShadowMaterial({ opacity: 0.32 })
+  new THREE.ShadowMaterial({ opacity: 0.16 })
 );
 shadowCatcher.rotation.x = -Math.PI / 2;
 shadowCatcher.position.y = 0;
@@ -386,8 +519,8 @@ crystalFull.visible = false;
 scene.add(crystalFull);
 let crystalFullReady = false;
 
-const SCENE_NAMES = ["星空石阵", "雨林", "能量晶簇"];
-const SCENE_FLASH_COLORS = [0xbfe9ff, 0x9dffc0, 0xffb080];
+const SCENE_NAMES = ["星空石阵", "雨林", "能量晶簇", "霓虹都市"];
+const SCENE_FLASH_COLORS = [0xbfe9ff, 0x9dffc0, 0xffb080, 0xff8ad4];
 let sceneIdx = 0;
 let beatCount = 0;
 let beatPulse = 0;
@@ -413,7 +546,7 @@ scene.add(camera);
 let transitionState = "idle";
 let transitionT = 0;
 let transitionNext = 0;
-const TRANSITION_COLORS = [0x06121f, 0x04180d, 0x150c1c];
+const TRANSITION_COLORS = [0x06121f, 0x04180d, 0x150c1c, 0x120a24];
 
 function easeInOut(t) {
   return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
@@ -424,10 +557,12 @@ function applyScene(i) {
   const showModelStage = i === 2 && crystalFullReady;
   scenesFocal.forEach((s, idx) => (s.visible = idx === i && !(idx === 2 && showModelStage)));
   scenesEnv.forEach((s, idx) => (s.visible = idx === i));
-  stage.visible = !showModelStage;
+  stage.visible = false;
   stageRing.visible = !showModelStage;
   crystalFull.visible = showModelStage;
   sceneIdx = i;
+  scene.environment = i === 3 && cityEnvironment ? cityEnvironment : defaultEnvironment;
+  scene.environmentIntensity = i === 3 ? 0.55 : 0.3;
   setStatus(`场景：${SCENE_NAMES[i]}｜等待姿态…`);
 }
 
@@ -628,7 +763,8 @@ function placeFocal(sceneIdx, prop, cfg, def) {
     const p = prop.clone(true);
     const a = cfg.center + (Math.random() - 0.5) * cfg.spread;
     const r = cfg.radius * (0.78 + Math.random() * 0.44);
-    p.position.set(Math.cos(a) * r, 0, Math.sin(a) * r);
+    const behindZ = -Math.max(0.35, Math.abs(Math.sin(a) * r));
+    p.position.set(Math.cos(a) * r, 0, behindZ);
     p.rotation.y = Math.random() * Math.PI * 2;
     if (def?.sway) registerSway(p, def.sway, def.swaySpeed ?? 0.55 + Math.random() * 0.7, def.swayAxis ?? "z");
     group.add(p);
@@ -649,6 +785,21 @@ const MODEL_DEFS = [
   { url: "models/crystal_a.glb", height: 1.5, env: { scenes: [2], count: 8, radius: 5.0, y: 0.1, yRand: 0.5 }, focal: { scenes: [2], count: 4, radius: 1.9, center: Math.PI, spread: 1.1 } },
   { url: "models/crystal_b.glb", height: 1.1, env: { scenes: [2], count: 8, radius: 4.4, y: 0.1, yRand: 0.5 } },
   { url: "models/mineral.glb", height: 1.0, focal: { scenes: [2], count: 5, radius: 2.2, center: Math.PI, spread: 1.2 } },
+  // 霓虹都市（场景 3）：Kenney CC0 楼宇，近景和远景都铺，避免塑料感。
+  { url: "models/city/building-skyscraper-a.glb", height: 6.2, env: { scenes: [3], count: 2, radius: 5.8, y: 0, yRand: 0.25 }, focal: { scenes: [3], count: 1, radius: 2.9, center: Math.PI, spread: 1.0 } },
+  { url: "models/city/building-skyscraper-b.glb", height: 5.5, env: { scenes: [3], count: 2, radius: 5.6, y: 0, yRand: 0.25 }, focal: { scenes: [3], count: 1, radius: 2.7, center: Math.PI, spread: 1.1 } },
+  { url: "models/city/building-skyscraper-c.glb", height: 5.0, env: { scenes: [3], count: 2, radius: 5.9, y: 0, yRand: 0.25 } },
+  { url: "models/city/building-skyscraper-d.glb", height: 5.8, env: { scenes: [3], count: 2, radius: 5.4, y: 0, yRand: 0.25 } },
+  { url: "models/city/building-skyscraper-e.glb", height: 5.3, env: { scenes: [3], count: 2, radius: 5.7, y: 0, yRand: 0.25 } },
+  { url: "models/city/building-a.glb", height: 3.2, env: { scenes: [3], count: 2, radius: 4.8, y: 0, yRand: 0.15 } },
+  { url: "models/city/building-b.glb", height: 3.6, env: { scenes: [3], count: 2, radius: 5.0, y: 0, yRand: 0.15 } },
+  { url: "models/city/building-c.glb", height: 3.0, env: { scenes: [3], count: 2, radius: 4.9, y: 0, yRand: 0.15 } },
+  { url: "models/city/building-e.glb", height: 3.8, env: { scenes: [3], count: 1, radius: 5.2, y: 0, yRand: 0.15 } },
+  { url: "models/city/building-f.glb", height: 3.4, env: { scenes: [3], count: 2, radius: 5.1, y: 0, yRand: 0.15 } },
+  { url: "models/city/building-g.glb", height: 3.7, env: { scenes: [3], count: 1, radius: 4.8, y: 0, yRand: 0.15 } },
+  { url: "models/city/building-h.glb", height: 3.5, env: { scenes: [3], count: 1, radius: 5.3, y: 0, yRand: 0.15 } },
+  { url: "models/city/low-detail-building-wide-a.glb", height: 2.5, env: { scenes: [3], count: 2, radius: 5.4, y: 0, yRand: 0.15 } },
+  { url: "models/city/low-detail-building-wide-b.glb", height: 2.6, env: { scenes: [3], count: 2, radius: 5.0, y: 0, yRand: 0.15 } },
 ];
 
 let modelsLoaded = 0;
@@ -937,17 +1088,69 @@ document.getElementById("btnScene").addEventListener("click", () => {
   setStatus(`切景中…`);
 });
 
+let depthOcclusionMesh = null;
+let depthSensingActive = false;
+let depthCheckAt = 0;
+
+function removeDepthOcclusion() {
+  if (!depthOcclusionMesh) return;
+  scene.remove(depthOcclusionMesh);
+  depthOcclusionMesh = null;
+}
+
+function ensureDepthOcclusion() {
+  if (!renderer.xr.isPresenting || depthOcclusionMesh || !renderer.xr.hasDepthSensing()) return;
+  const mesh = renderer.xr.getDepthSensingMesh();
+  if (!mesh) return;
+  mesh.renderOrder = -1000;
+  mesh.frustumCulled = false;
+  if (mesh.material) {
+    mesh.material.colorWrite = false;
+    mesh.material.depthWrite = true;
+    mesh.material.depthTest = true;
+  }
+  depthOcclusionMesh = mesh;
+  scene.add(mesh);
+  setStatus(`深度遮挡已启用 ✓｜场景：${SCENE_NAMES[sceneIdx]}`);
+}
+
 document.getElementById("btnEnter").addEventListener("click", async () => {
+  let session = null;
   try {
-    const session = await navigator.xr.requestSession("immersive-ar", {
-      optionalFeatures: ["local-floor", "bounded-floor", "dom-overlay"],
+    session = await navigator.xr.requestSession("immersive-ar", {
+      optionalFeatures: ["local-floor", "bounded-floor", "dom-overlay", "depth-sensing"],
+      depthSensing: { usagePreference: ["gpu-optimized"], dataFormatPreference: [] },
       domOverlay: { root: document.getElementById("ui") },
     });
+    depthSensingActive = true;
+  } catch (depthErr) {
+    try {
+      session = await navigator.xr.requestSession("immersive-ar", {
+        optionalFeatures: ["local-floor", "bounded-floor", "dom-overlay"],
+        domOverlay: { root: document.getElementById("ui") },
+      });
+      depthSensingActive = false;
+    } catch (err) {
+      setStatus("MR 模式不可用：" + err.message + "（请确认用 Pico 浏览器打开，并已授权摄像头）");
+      return;
+    }
+  }
+  try {
     await renderer.xr.setSession(session);
     controls.enabled = false;
-    setStatus(`MR 透视已开启 ✓ 面向舞台｜场景：${SCENE_NAMES[sceneIdx]}`);
+    depthCheckAt = performance.now() + 2500;
+    session.addEventListener("end", () => {
+      removeDepthOcclusion();
+      depthSensingActive = false;
+      depthCheckAt = 0;
+      controls.enabled = true;
+      camera.near = 0.05;
+      camera.far = 80;
+      camera.updateProjectionMatrix();
+    });
+    setStatus(depthSensingActive ? `MR 透视已开启，深度遮挡尝试中…｜场景：${SCENE_NAMES[sceneIdx]}` : `MR 透视已开启（深度遮挡不可用）｜场景：${SCENE_NAMES[sceneIdx]}`);
   } catch (err) {
-    setStatus("MR 模式不可用：" + err.message + "（请确认用 Pico 浏览器打开，并已授权摄像头）");
+    setStatus("MR 会话启动失败：" + err.message);
   }
 });
 
@@ -955,14 +1158,21 @@ const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
 composer.addPass(new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.38, 0.45, 0.82));
 
-const FOG_COLORS = [0x0a1420, 0x07170e, 0x150c1c];
-const FOG_DENSITY = [0.027, 0.036, 0.028];
+const FOG_COLORS = [0x0a1420, 0x07170e, 0x150c1c, 0x0b0d18];
+const FOG_DENSITY = [0.027, 0.036, 0.028, 0.024];
 let lastFrameAt = performance.now();
 
 function update(now) {
   const dt = Math.min(100, now - lastFrameAt);
   lastFrameAt = now;
   const energyBoost = Math.min(1, musicEnergy / 255);
+  if (renderer.xr.isPresenting) {
+    ensureDepthOcclusion();
+    if (depthSensingActive && !depthOcclusionMesh && depthCheckAt > 0 && now > depthCheckAt) {
+      depthCheckAt = 0;
+      setStatus(`深度遮挡不可用，已回退表演区清空方案｜场景：${SCENE_NAMES[sceneIdx]}`);
+    }
+  }
 
   // 切景过渡：先压暗，换景后再亮回。
   if (transitionState === "out") {
