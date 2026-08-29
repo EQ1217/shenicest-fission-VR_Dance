@@ -1088,6 +1088,29 @@ document.getElementById("btnScene").addEventListener("click", () => {
   setStatus(`切景中…`);
 });
 
+// ============ 自动演示模式（兜底：无姿态 / 无音乐也能完整展示） ============
+let demoMode = false, demoTimer = null, demoCount = 0;
+function startDemo() {
+  demoMode = true;
+  setStatus(`自动演出进行中：粒子爆发 + 场景循环｜场景：${SCENE_NAMES[sceneIdx]}`);
+  demoTimer = setInterval(() => {
+    burstT = 1;
+    triggerBurst();
+    demoCount++;
+    if (demoCount % 4 === 0) showScene(sceneIdx + 1);
+  }, 3000);
+}
+function stopDemo() {
+  demoMode = false;
+  if (demoTimer) { clearInterval(demoTimer); demoTimer = null; }
+  setStatus(`自动演出已关闭｜场景：${SCENE_NAMES[sceneIdx]}`);
+}
+document.getElementById("btnDemo").addEventListener("click", () => {
+  if (demoMode) stopDemo();
+  else startDemo();
+});
+startDemo();
+
 let depthOcclusionMesh = null;
 let depthSensingActive = false;
 let depthCheckAt = 0;

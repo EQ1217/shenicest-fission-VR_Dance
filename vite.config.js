@@ -1,5 +1,8 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { defineConfig } from "vite";
+
+// 本地开发才需要 HTTPS 证书；云端构建（Vercel 等）没有 key.pem/cert.pem，跳过 server 配置
+const hasLocalCert = existsSync("key.pem") && existsSync("cert.pem");
 
 export default defineConfig({
   build: {
@@ -11,7 +14,7 @@ export default defineConfig({
       },
     },
   },
-  server: {
+  server: hasLocalCert ? {
     host: true,
     https: {
       key: readFileSync("key.pem"),
@@ -24,5 +27,5 @@ export default defineConfig({
         ws: true,
       },
     },
-  },
+  } : {},
 });
