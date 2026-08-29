@@ -3,55 +3,51 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>VR 舞蹈 demo · 声动舞台</title>
+    <title>舞界 · MR 观演端（Pico 4 Ultra）</title>
     <style>
-      body {
-        margin: 0;
-        background: #0a0a14;
-        color: #fff;
-        font-family: system-ui, -apple-system, sans-serif;
-      }
-      #wrap { display: flex; gap: 16px; padding: 16px; flex-wrap: wrap; }
-      #camBox { position: relative; width: 640px; height: 480px; }
-      video, #overlay { position: absolute; left: 0; top: 0; width: 640px; height: 480px; }
-      #renderBox { width: 640px; height: 480px; border: 1px solid #222; background: #000; }
-      #ui { width: 300px; display: flex; flex-direction: column; gap: 10px; }
-      #ui h3 { margin: 0; }
-      button, input[type="file"] {
-        padding: 9px;
-        border-radius: 8px;
+      body { margin: 0; background: #000; color: #fff; font-family: system-ui; overflow: hidden; }
+      #ui {
+        position: fixed;
+        left: 50%;
+        bottom: 18px;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        background: rgba(10, 10, 20, 0.75);
+        padding: 12px 16px;
+        border-radius: 14px;
         border: 1px solid #333;
+        backdrop-filter: blur(6px);
+        z-index: 10;
+        max-width: 94vw;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+      button {
+        padding: 10px 14px;
+        border-radius: 10px;
+        border: 1px solid #444;
         background: #1c1c2e;
         color: #fff;
         cursor: pointer;
+        font-size: 15px;
       }
-      #status { font-size: 12px; color: #9a9ab0; line-height: 1.7; }
-      kbd { background: #333; padding: 1px 5px; border-radius: 4px; }
+      #btnEnter { background: #2e6bff; border-color: #4f86ff; }
+      #status { width: 100%; text-align: center; font-size: 13px; color: #9a9ab0; }
     </style>
   </head>
   <body>
-    <div style="padding:12px 16px;background:#12121f;border-bottom:1px solid #333;font-size:14px;color:#9fb0ff;">
-      正式演示请用：电脑打开 <a href="/pose.html" style="color:#8fd0ff;">pose.html</a>，Pico 打开 <a href="/mr.html" style="color:#8fd0ff;">mr.html</a>。本页是旧的本地预览。
+    <div id="ui">
+      <button id="btnEnter">进入 MR 模式</button>
+      <input id="musicFile" type="file" accept="audio/*" hidden />
+      <button id="btnMusic">加载音乐</button>
+      <button id="btnMic">麦克风识别</button>
+      <button id="btnMetro">自动节拍</button>
+      <button id="btnScene">手动切景</button>
+      <button id="btnDemo">自动演示模式（兜底）</button>
+      <div id="status">等待姿态数据…（电脑打开 /pose.html）</div>
     </div>
-    <div id="wrap">
-      <div id="camBox">
-        <video id="video" autoplay playsinline></video>
-        <canvas id="overlay" width="640" height="480"></canvas>
-      </div>
-      <div id="renderBox"></div>
-      <div id="ui">
-        <h3>VR 舞蹈 demo</h3>
-        <label>① 选一首音乐（可选，没有也能玩）</label>
-        <input id="musicFile" type="file" accept="audio/*" />
-        <button id="btnMusic">② 播放音乐 + 节拍检测</button>
-        <button id="btnMetro">③ 自动节拍模式（无音乐时用）</button>
-        <button id="btnScene">④ 手动切景</button>
-        <div id="status">状态：加载模型中…</div>
-        <div style="font-size: 12px; color: #666; line-height: 1.8">
-          快捷键：<kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> 切景 ｜ 快速挥手触发粒子爆发
-        </div>
-      </div>
-    </div>
-    <script type="module" src="/src/main.js"></script>
+    <script type="module" src="/src/mr.js"></script>
   </body>
 </html>
